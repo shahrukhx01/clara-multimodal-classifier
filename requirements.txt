@@ -1,0 +1,13 @@
+pytorch-lightning==1.7.2
+torch==2.0.0
+torchaudio
+transformers
+more_itertools
+unidecode
+webdataset
+inflect
+scipy
+librosa
+torchdata
+einops
+torchmetrics==0.11.4
