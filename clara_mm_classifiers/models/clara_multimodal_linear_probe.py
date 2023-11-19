@@ -10,7 +10,7 @@ from clara_mm_classifiers.utils.accuracy import accuracy
 from clara_mm_classifiers.utils.modeling_utils import get_optimiser
 
 
-class CLARAAudioLinearProbe(pl.LightningModule):
+class CLARAAudioMultimodalLinearProbe(pl.LightningModule):
     def __init__(
         self,
         num_classes: int,
@@ -37,16 +37,23 @@ class CLARAAudioLinearProbe(pl.LightningModule):
         self.feature_extractor.freeze()
 
         self.classifier = MLPLayers(
-            [self.feature_extractor._hparams.output_dim, 512, 128, num_classes],
+            [2 * self.feature_extractor._hparams.output_dim, 512, 128, num_classes],
             dropout=dropout,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.feature_extractor.encode_audio(x)
-        x = F.normalize(x, dim=-1)
-        x = self.feature_extractor.model.audio_transform(x)
+    def forward(self, text: torch.Tensor, audio: torch.Tensor) -> torch.Tensor:
 
-        return self.classifier(x)
+        text_features = self.feature_extractor.encode_text(text)
+        audio_features = self.feature_extractor.encode_audio(audio)
+
+        # Projection
+        text_features = self.feature_extractor.model.text_transform(text_features)
+        audio_features = self.feature_extractor.model.audio_transform(audio_features)
+
+        text_features = F.normalize(text_features, dim=-1)
+        audio_features = F.normalize(audio_features, dim=-1)
+        
+        return self.classifier(torch.cat((audio_features, text_features), 1))
 
     def training_step(self, batch, batch_idx):
         _, loss, acc = self._shared_eval_step(batch, batch_idx)
@@ -64,11 +71,12 @@ class CLARAAudioLinearProbe(pl.LightningModule):
         self.log_dict(metrics)
 
     def _shared_eval_step(self, batch, batch_idx):
-        labels, mels = batch["label"], batch["mels"]
-        y_hat = self(mels)
-
-        loss = F.cross_entropy(y_hat, labels)
-        acc = accuracy(y_hat, labels)[0] / labels.size(0)
+        labels, mels, texts, _, _ = batch
+        y_hat = self(texts, mels).squeeze()
+        print(y_hat.dtype, labels.dtype)
+        loss = F.mse_loss(y_hat, labels)
+        acc = loss
+        # accuracy(y_hat, labels)[0] / labels.size(0)
 
         return y_hat, loss, acc
 
