@@ -73,10 +73,8 @@ class CLARAAudioMultimodalLinearProbe(pl.LightningModule):
     def _shared_eval_step(self, batch, batch_idx):
         labels, mels, texts, _, _ = batch
         y_hat = self(texts, mels).squeeze()
-        print(y_hat.dtype, labels.dtype)
-        loss = F.mse_loss(y_hat, labels)
-        acc = loss
-        # accuracy(y_hat, labels)[0] / labels.size(0)
+        loss = F.cross_entropy(y_hat, labels)
+        acc = accuracy(y_hat, labels)[0] / labels.size(0)
 
         return y_hat, loss, acc
 
